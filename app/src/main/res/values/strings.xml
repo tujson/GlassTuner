@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">GlassTuner</string>
+    <string name="title_activity_live_card_service">Hello World LiveCard</string>
+    <string name="action_stop">Stop</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="glass_tuner_voice_trigger">tuner</string>
+</resources>
