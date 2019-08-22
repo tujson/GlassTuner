@@ -12,18 +12,19 @@ import android.media.MediaRecorder
 import android.os.IBinder
 import android.util.Log
 import android.widget.RemoteViews
+import dev.synople.glasstuner.calculators.AudioCalculator
 
 class LiveCardService : Service() {
-    private val SAMPLING_RATE = 44100
+    private val samplingRate = 44100
     private val bufferSize = AudioRecord.getMinBufferSize(
-        SAMPLING_RATE, AudioFormat.CHANNEL_IN_MONO,
+        samplingRate, AudioFormat.CHANNEL_IN_MONO,
         AudioFormat.ENCODING_PCM_16BIT
     )
     private val recorder = AudioRecord(
-        MediaRecorder.AudioSource.MIC, SAMPLING_RATE,
+        MediaRecorder.AudioSource.MIC, samplingRate,
         AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize
     )
-    private var audioData: ShortArray = ShortArray(bufferSize / 2)
+    private var audioData: ByteArray = ByteArray(bufferSize)
 
 
     private var liveCard: LiveCard? = null
@@ -42,9 +43,7 @@ class LiveCardService : Service() {
             remoteViews = RemoteViews(packageName, R.layout.live_card)
             liveCard!!.setViews(remoteViews)
 
-            // TODO: Start recording and displaying info
             startRecording()
-
 
             // Display the options menu when the live card is tapped.
             val menuIntent = Intent(this, LiveCardMenuActivity::class.java)
@@ -62,20 +61,33 @@ class LiveCardService : Service() {
 
         recordingThread = Thread(Runnable {
             while (isRecording) {
-                recorder.read(audioData, 0, bufferSize / 2)
-                val floatData = convert(audioData)
-                val yinResult = YINPitchDetector(recorder.sampleRate.toDouble(), FloatArray(bufferSize / 4)).detect(floatData)
-                val note = ArrayNoteFinder()
-                note.setFrequency(yinResult)
-                Log.v("YINResult", "${note.noteName}: $yinResult")
+                recorder.read(audioData, 0, bufferSize)
 
-                remoteViews.setTextViewText(R.id.tvNote, note.noteName)
+                val note = process(audioData)
+                Log.v("Result", note)
+
+                remoteViews.setTextViewText(R.id.tvNote, note)
                 liveCard?.setViews(remoteViews)
 
                 Thread.sleep(250)
             }
         })
         recordingThread?.start()
+    }
+
+    private fun process(byteArray: ByteArray): String {
+        val audioCalculator = AudioCalculator()
+        audioCalculator.setBytes(byteArray)
+
+        val frequency = audioCalculator.frequency
+        val note = ArrayNoteFinder()
+        note.setFrequency(frequency)
+
+        return if (frequency > 10) {
+            "${note.noteName}: $frequency"
+        } else {
+            "?"
+        }
     }
 
     override fun onDestroy() {
